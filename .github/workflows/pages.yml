@@ -36,10 +36,7 @@ jobs:
         with:
           node-version: "22"
       - name: Setup Pages
-        id: pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - name: Generate calendars
         id: gen
         run: node scripts/generate.mjs
