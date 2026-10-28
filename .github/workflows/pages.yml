@@ -16,8 +16,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  # Lets configure-pages turn Pages on the first time, when the repo has no Pages site yet.
-  administration: write
 
 concurrency:
   group: pages
