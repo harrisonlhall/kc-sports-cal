@@ -43,18 +43,23 @@ export function mergeEspnAndSofa(team, espnEvents, sofaEvents) {
 
 export function applyCachedUids(events, cached) {
   const exact = new Map();
-  const byMonth = new Map();
-  const monthCount = new Map();
   for (const event of cached || []) {
-    const [dayKey, monthKey] = stableKeys(event);
-    exact.set(dayKey, event.uid);
-    monthCount.set(monthKey, (monthCount.get(monthKey) || 0) + 1);
-    if (!byMonth.has(monthKey)) byMonth.set(monthKey, event.uid);
+    const [dayKey] = stableKeys(event);
+    // First cached fixture for this day wins. A later cache entry for the same
+    // day must not steal a uid that already identifies a different match.
+    if (!exact.has(dayKey)) exact.set(dayKey, event.uid);
   }
+  const used = new Set(events.map((event) => event.uid));
   for (const event of events) {
-    const [dayKey, monthKey] = stableKeys(event);
-    if (exact.has(dayKey)) event.uid = exact.get(dayKey);
-    else if (monthCount.get(monthKey) === 1) event.uid = byMonth.get(monthKey);
+    const [dayKey] = stableKeys(event);
+    const cachedUid = exact.get(dayKey);
+    if (!cachedUid || cachedUid === event.uid) continue;
+    // The cached uid may belong to a match that has since moved. Reusing it
+    // here would publish two different fixtures with one UID.
+    if (used.has(cachedUid)) continue;
+    used.delete(event.uid);
+    event.uid = cachedUid;
+    used.add(cachedUid);
   }
   return events;
 }
@@ -74,7 +79,12 @@ export function chooseEvents(fresh, cached) {
   }
   if (cachedUpcoming >= 4 && freshUpcoming < cachedUpcoming * 0.5) {
     const seen = new Set(freshKept.map((event) => stableKeys(event)[0]));
-    const extras = cachedKept.filter((event) => event.start.getTime() >= now && !seen.has(stableKeys(event)[0]));
+    const freshUids = new Set(freshKept.map((event) => event.uid));
+    const extras = cachedKept.filter((event) => {
+      if (event.start.getTime() < now) return false;
+      if (freshUids.has(event.uid)) return false;
+      return !seen.has(stableKeys(event)[0]);
+    });
     return { events: [...freshKept, ...extras], stale: true, reason: "live fetch shrunk" };
   }
   return { events: freshKept, stale: false, reason: "" };
